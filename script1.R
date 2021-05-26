@@ -1,3 +1,8 @@
+install.packages("rstudioapi", dependencies = TRUE)
+library(rstudioapi)
+currentDir <- dirname(getActiveDocumentContext()$path)
+currentDir
+setwd(currentDir)
 studentnumber =787524
   fulldata = read.csv("HousePrices.txt", sep = " ", header = TRUE)
 digitsum = function(x) sum(floor(x/10^(0:(nchar(x)-1)))%%10)
@@ -26,6 +31,13 @@ meanIncome = mydata$MeanIncome
 healthSocial = mydata$HealthSocial
 industries = mydata$Industries
 hotelRestaurant = mydata$HotelRestaurant
+region = mydata$Region
+province = mydata$Province
+municipality = mydata$Municipality
+shops = mydata$Shops
+bankruptcies = mydata$Bankruptcies
+taxForms = mydata$TaxForms
+
 
 plot(meanIncome,priceHouse)
 plot(healthSocial,priceHouse)#not really significant
@@ -119,5 +131,107 @@ fit9 = spm(priceHouse ~ f(meanIncome , healthSocial) )
 plot(fit9)
 AICfit9 = -2*fit9$fit$logLik+2*fit9$aux$df.fit
 AICfit9#choose AIC più basso, interaction effect is not needed
+
+
+
+
+
+#4 a
+# alpha = 1 LASSO , alpha = 0 RIDGE , in between is the general version of elastic net
+xmatrix <- model.matrix(priceHouse ~ 
+                          meanIncome+
+                          healthSocial+                       
+                          industries +
+                          hotelRestaurant +
+                          region +
+                          province +
+                          shops +
+                          bankruptcies +
+                          taxForms ,
+                        data=mydata)[,-1]
+
+alpha = c(0,1,.5)
+for (a in alpha){
+  glmnet_fit  <- glmnet(xmatrix,priceHouse,alpha = a)
+  cv_fit <- cv.glmnet(xmatrix,priceHouse,alpha = a, folds=5)
+  
+  coefficients <-coef(cv_fit,s = cv_fit$lambda.min)
+  print(coefficients)
+}
+s <- cv_fit$lambda.min #minimum lambda value(the best, cross validation is included)
+point <- as.numeric(coef(cv_fit , s = s))[-1]
+#plotting the estimated coefficient as function of lambda
+plot.tmp <- plot(glmnet_fit, xvar = "lambda" , label = TRUE)
+
+
+#municipality leftover because variable for the "curious"
+mydata$Province = as.factor(mydata$Province)
+mydata$Region = as.factor(mydata$Region )
+priceHouse = mydata$PriceHouse
+meanIncome = mydata$MeanIncome
+healthSocial = mydata$HealthSocial
+industries = mydata$Industries
+hotelRestaurant = mydata$HotelRestaurant
+region = mydata$Region
+province = mydata$Province
+shops = mydata$Shops
+bankruptcies = mydata$Bankruptcies
+taxForms = mydata$TaxForms
+
+
+logitRegression = lm(priceHouse ~ 
+                        meanIncome+
+                        healthSocial+                       
+                        industries +
+                        hotelRestaurant +
+                        region +
+                        province +
+                        shops +
+                        bankruptcies +
+                        taxForms ,
+                      data=mydata, 
+                    family = binomial)
+print(coef(logitRegression))
+#I oder the data in a decreasing number of industries order and then I take the median value
+library(glmnet)
+mydata_grouped_1 <- mydata[order(mydata$Industries),]
+newX_1 <- mydata[15,]
+newX_1 <- as.matrix(newX_1)
+for (a in alpha){
+glm <-cv.glmnet(xmatrix,priceHouse,alpha = a, folds=5)#Coefficient NA --> Error
+print(coef(glm))
+pred1 <- predict(glm, newX_1, s = glm$lambda.min,type = "class")
+print(pred1)
+}
+
+
+mydata_grouped_2 <- mydata[order(mydata$HotelRestaurant),]
+newX_2 <- mydata[130,]
+newX_2 <- as.matrix(newX_2)
+for (a in alpha){
+  glm <-cv.glmnet(xmatrix,priceHouse,alpha = a, folds=5)
+  pred1 <- predict(glm,  newX_2, type = "response", s = glm$lambda.min)
+  print(pred1)
+}
+
+pred <-predict(logitRegression, newx_1, interval = "confidence")
+
+
+
+
+
+#2
+y = mydata$PriceHouse
+x6 = mydata$TaxForms
+x9 = mydata$HealthSocial
+
+
+
+
+
+
+
+
+
 
 
