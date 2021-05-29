@@ -137,6 +137,19 @@ AICfit9#choose AIC più basso, interaction effect is not needed
 
 
 #4 a
+#municipality leftover because variable for the "curious"
+mydata$Province = as.factor(mydata$Province)
+mydata$Region = as.factor(mydata$Region )
+priceHouse = (mydata$PriceHouse)
+meanIncome = mydata$MeanIncome
+healthSocial = mydata$HealthSocial
+industries = mydata$Industries
+hotelRestaurant = mydata$HotelRestaurant
+region = mydata$Region
+province = mydata$Province
+shops = mydata$Shops
+bankruptcies = mydata$Bankruptcies
+taxForms = mydata$TaxForms
 # alpha = 1 LASSO , alpha = 0 RIDGE , in between is the general version of elastic net
 xmatrix <- model.matrix(priceHouse ~ 
                           meanIncome+
@@ -164,19 +177,7 @@ point <- as.numeric(coef(cv_fit , s = s))[-1]
 plot.tmp <- plot(glmnet_fit, xvar = "lambda" , label = TRUE)
 
 
-#municipality leftover because variable for the "curious"
-mydata$Province = as.factor(mydata$Province)
-mydata$Region = as.factor(mydata$Region )
-priceHouse = mydata$PriceHouse
-meanIncome = mydata$MeanIncome
-healthSocial = mydata$HealthSocial
-industries = mydata$Industries
-hotelRestaurant = mydata$HotelRestaurant
-region = mydata$Region
-province = mydata$Province
-shops = mydata$Shops
-bankruptcies = mydata$Bankruptcies
-taxForms = mydata$TaxForms
+
 
 
 logitRegression = lm(priceHouse ~ 
@@ -193,39 +194,63 @@ logitRegression = lm(priceHouse ~
                     family = binomial)
 print(coef(logitRegression))
 #I oder the data in a decreasing number of industries order and then I take the median value
-library(glmnet)
+library(glmnetUtils)
+
 mydata_grouped_1 <- mydata[order(mydata$Industries),]
-newX_1 <- mydata[15,]
-newX_1 <- as.matrix(newX_1)
+ind <- mydata[15,]
 for (a in alpha){
-glm <-cv.glmnet(xmatrix,priceHouse,alpha = a, folds=5)#Coefficient NA --> Error
-print(coef(glm))
-pred1 <- predict(glm, newX_1, s = glm$lambda.min,type = "class")
+h <- glmnetUtils::cv.glmnet(xmatrix,priceHouse,alpha = a, folds=5)#Coefficient NA --> Error
+print(coef(h))
+pred1 <- glmnetUtils:::predict.cv.glmnet.formula( h, new = ind, s = glm$lambda.min)
 print(pred1)
 }
+
 
 
 mydata_grouped_2 <- mydata[order(mydata$HotelRestaurant),]
 newX_2 <- mydata[130,]
 newX_2 <- as.matrix(newX_2)
 for (a in alpha){
-  glm <-cv.glmnet(xmatrix,priceHouse,alpha = a, folds=5)
+  glm = cv.glmnet(xmatrix,priceHouse,alpha = a, folds=5)
   pred1 <- predict(glm,  newX_2, type = "response", s = glm$lambda.min)
   print(pred1)
 }
 
-pred <-predict(logitRegression, newx_1, interval = "confidence")
-
-
-
-
-
 #2
+# # State the null hypothesis of a parametric additive model 
+# for (if needed a suitable transformation of) the expected median house price 
+# with linear and quadratic effects for both covariates x6 and x9. Test this hypothesis 
+# using an order selection test against a 
+# nonparametric alternative hypothesis. Report both hypotheses, the construction 
+# of the test statistic, its value,as well as the corresponding p-value and draw the correct conclusion.
+
+# P_value approximation stabilizes given the m number of value
+# cn is the critical value
+
 y = mydata$PriceHouse
 x6 = mydata$TaxForms
 x9 = mydata$HealthSocial
 
+m = 4#null model + 10 alternative models = 11 total models
 
+
+library(aod)
+matrix <- model.matrix(y ~ x6 + x9 + I(x6^2)+ I(x9^2))
+X = poly(x6 + x9 + I(x6^2)+ I(x9^2),m)
+LogLik = rep(NA,m)
+for(j in 1 : m){
+  LogLik[j] = logLik(lm(y ~ X[,1:j]))
+  #difference between alternative and null model Loglikelihoods
+}
+T.OS = max(2*(LogLik[2:m]-LogLik[1])/(1:(m-1)))
+#WE WANT ONE test statistics NOT 14 different, we take the maximum
+pvalue.Tos = function(Tos)
+{mlimit = 100
+1-exp(-sum((1-pchisq((1:mlimit)*Tos,1:mlimit))/(1:mlimit)))
+}
+pvalue.Tos(T.OS)
+
+#3
 
 
 
