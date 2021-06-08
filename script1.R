@@ -16,6 +16,7 @@ if((mysum %% 2) == 0) { # number is even
   rownumbers = sample(309:585,150,replace=F)
 }
 mydata = fulldata[rownumbers,]
+attach(mydata)
 
 #1
 #model for the median house price
@@ -46,7 +47,7 @@ plot(hotelRestaurant,priceHouse)
 hist(priceHouse)
 #fit a normal parametric additiv model linear regression
 
-fit0 = lm(median(priceHouse) ~ meanIncome + healthSocial)
+fit0 = lm(priceHouse ~ meanIncome + healthSocial)
 summary(fit0)
 AIC0= as.numeric(-2*logLik(fit0) + 2*length(coef(fit0)))
 AIC0
@@ -138,29 +139,17 @@ AICfit9#choose AIC più basso, interaction effect is not needed
 
 #4 a
 #municipality leftover because variable for the "curious"
-mydata$Province = as.factor(mydata$Province)
-mydata$Region = as.factor(mydata$Region )
-priceHouse = (mydata$PriceHouse)
-meanIncome = mydata$MeanIncome
-healthSocial = mydata$HealthSocial
-industries = mydata$Industries
-hotelRestaurant = mydata$HotelRestaurant
-region = mydata$Region
-province = mydata$Province
-shops = mydata$Shops
-bankruptcies = mydata$Bankruptcies
-taxForms = mydata$TaxForms
 # alpha = 1 LASSO , alpha = 0 RIDGE , in between is the general version of elastic net
-xmatrix <- model.matrix(priceHouse ~ 
-                          meanIncome+
-                          healthSocial+                       
-                          industries +
-                          hotelRestaurant +
-                          region +
-                          province +
-                          shops +
-                          bankruptcies +
-                          taxForms ,
+xmatrix <- model.matrix(PriceHouse ~ 
+                          MeanIncome+
+                          HealthSocial+                       
+                          Industries +
+                          HotelRestaurant +
+                          Region +
+                          Province +
+                          Shops +
+                          Bankruptcies +
+                          TaxForms ,
                         data=mydata)[,-1]
 
 alpha = c(0,1,.5)
@@ -177,19 +166,16 @@ point <- as.numeric(coef(cv_fit , s = s))[-1]
 plot.tmp <- plot(glmnet_fit, xvar = "lambda" , label = TRUE)
 
 
-
-
-
-logitRegression = lm(priceHouse ~ 
-                        meanIncome+
-                        healthSocial+                       
-                        industries +
-                        hotelRestaurant +
-                        region +
-                        province +
-                        shops +
-                        bankruptcies +
-                        taxForms ,
+logitRegression = lm(PriceHouse ~ 
+                        MeanIncome+
+                        HealthSocial+                       
+                        Industries +
+                        HotelRestaurant +
+                        Region +
+                        Province +
+                        Shops +
+                        Bankruptcies +
+                        TaxForms ,
                       data=mydata, 
                     family = binomial)
 print(coef(logitRegression))
@@ -197,24 +183,50 @@ print(coef(logitRegression))
 library(glmnetUtils)
 
 mydata_grouped_1 <- mydata[order(mydata$Industries),]
-ind <- mydata[15,]
+ind <- select(mydata[15,],-PriceHouse, -Municipality)
 for (a in alpha){
-h <- glmnetUtils::cv.glmnet(xmatrix,priceHouse,alpha = a, folds=5)#Coefficient NA --> Error
-print(coef(h))
-pred1 <- glmnetUtils:::predict.cv.glmnet.formula( h, new = ind, s = glm$lambda.min)
+h <- glmnetUtils::cv.glmnet(PriceHouse ~ 
+                              MeanIncome+
+                              HealthSocial+                       
+                              Industries +
+                              HotelRestaurant +
+                              Region +
+                              Province +
+                              Shops +
+                              Bankruptcies +
+                              TaxForms,data = mydata,alpha = a, folds=5)#Coefficient NA --> Error
+pred1 <- glmnetUtils:::predict.cv.glmnet.formula( h, new = ind, s = "lambda.min")
 print(pred1)
 }
 
 
-
 mydata_grouped_2 <- mydata[order(mydata$HotelRestaurant),]
-newX_2 <- mydata[130,]
-newX_2 <- as.matrix(newX_2)
+hotel <- select(mydata[130,],-PriceHouse, -Municipality)
 for (a in alpha){
-  glm = cv.glmnet(xmatrix,priceHouse,alpha = a, folds=5)
-  pred1 <- predict(glm,  newX_2, type = "response", s = glm$lambda.min)
+  glm = cv.glmnet(PriceHouse ~ 
+                    MeanIncome+
+                    HealthSocial+                       
+                    Industries +
+                    HotelRestaurant +
+                    Region +
+                    Province +
+                    Shops +
+                    Bankruptcies +
+                    TaxForms,data = mydata,alpha = a, folds=5)
+  pred1 <- predict(glm,  new = hotel,  s = "lambda.min")
   print(pred1)
 }
+
+#MLE prediction
+pred_ind <- predict(logitRegression, newdata = ind, type = "response")
+pred_ind
+pred_hotel <-predict(logitRegression, newdata = hotel, type = "response")
+pred_hotel
+
+
+
+
+
 
 #2
 # # State the null hypothesis of a parametric additive model 
@@ -230,19 +242,17 @@ for (a in alpha){
 y = mydata$PriceHouse
 x6 = mydata$TaxForms
 x9 = mydata$HealthSocial
+m = 2#null model + 3 alternative models = 4 total models
+X = poly(cbind(x6,x9, I(x6^2), I(x9^2)), m)
+alternative1 <- X[,c(1,3,6,10,4)]
+alternative2 <- X[,c(1,3,6,10,11)]
 
-m = 4#null model + 10 alternative models = 11 total models
-
-
-library(aod)
-matrix <- model.matrix(y ~ x6 + x9 + I(x6^2)+ I(x9^2))
-X = poly(x6 + x9 + I(x6^2)+ I(x9^2),m)
-LogLik = rep(NA,m)
-for(j in 1 : m){
-  LogLik[j] = logLik(lm(y ~ X[,1:j]))
-  #difference between alternative and null model Loglikelihoods
-}
-T.OS = max(2*(LogLik[2:m]-LogLik[1])/(1:(m-1)))
+LogLik = rep(NA,m+1)
+LogLik[1] = logLik(lm(y ~ x6 + x9 + I(x6^2)+ I(x9^2)))
+LogLik[2] = logLik(lm(y ~ alternative1))
+LogLik[3] = logLik(lm(y ~ alternative2))
+T.OS = max(2*(LogLik[2:m+1]-LogLik[1])/(1:(m)))
+#under null hypothesis it behaves aymptothically as a chi squared
 #WE WANT ONE test statistics NOT 14 different, we take the maximum
 pvalue.Tos = function(Tos)
 {mlimit = 100
@@ -250,13 +260,54 @@ pvalue.Tos = function(Tos)
 }
 pvalue.Tos(T.OS)
 
-#3
+# #3
+# Make a graphical presentation that supports why you suggest a certain mixed effect structure
+# using x2 Province as the grouping variable. Construct the plot illustrating whether there is
+# an effect of Province when regressing y on x6 the number of tax forms. For the plot you may
+# ignore all other covariates.
+# 3.B Construct a parametric (generalized) linear mixed effect model. You leave out variable x1 for
+# this part, but your model should include x2 and x6; other covariates may be included in the
+# model in a parametric way, based on your answer of question 1, no fixed effect model selection
+# should be done for this question. Provide the model using correct statistical notation, and
+# give a summary of the output. Briefly discuss whether the output supports your suggestion
+# from 3.A. Note: library(hglm) contains both hglm and hglm2 wich may be used for fitting,
+# also glmmPQL is a possib
 
+ 
+#3A
+# I have to use x6 as covariate and x2 as random effect.
+factors_df <- mydata[c("Province","PriceHouse","TaxForms")]
+fit22 = PriceHouse ~ Province + TaxForms
+plot.design(fit22)
+plot.design(factors_df, PriceHouse)
 
+#Trellis Plot: I clean the dataset and imposed a condition on TaxForms
+mydata_clean<-mydata[(mydata$TaxForms< 40000),]
+library(lattice)
+xyplot(PriceHouse ~ TaxForms | Province , mydata_clean, type = c("g","p","r"),
+       index = function(x,y) coef(lm(y ~ x))[1],
+       xlab = " X = Tax Forms",
+       ylab = "Y = median Price House", aspect = "xy")
+# Median Price house is defenitely affected when grouped by Province
 
+library(hglm) 
+library(MASS)
+hist(PriceHouse)
+#Generalized Mixed model
+fit = glmmPQL(PriceHouse ~  TaxForms,random = list(Province =~1 ),family = Gamma(link = log))
+#continuous non negative and skewed --> Gamma as conditional distribution
+summary(fit)
+# we get the standard deviation of the random effect and the residual error.
+library(nlme)
+intervals(fit_lme,which = "var-cov")
+#copnfidence interval obtained through normal approximation t
+# o the distribution of the ML estimators.
 
-
-
+#Linear Mixed Model
+fit_lme = lme(PriceHouse ~  TaxForms,random = ~1 | Province , data = mydata , method = "ML")
+summary(fit_lme)
+library(RLRsim)
+exactRLRT(fit_lme)
 
 
 
